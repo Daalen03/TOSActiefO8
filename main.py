@@ -5,21 +5,10 @@ class Player:
     self.name = name
     self.id = id
 
-# Lucie = Player("Lucie", 1)
-# Eliah = Player("Eliah", 2)
-# Victor = Player("Victor", 3)
-# Walter = Player("Walter", 4)
-# Vidar = Player("Vidar", 5)
-# Luis = Player("Elis", 6)
-# Oscar = Player("Oscar", 7)
-# Evan = Player("Evan", 8)
-# Yahto = Player("Yahto", 9)
-
-
 # Initialize player and goalkeeper lists
 players = [Player("Lucie", 1), Player("Eliah", 2), Player("Victor", 3), Player("Walter", 4),
            Player("Vidar", 5), Player("Luis", 6), Player("Oscar", 7), Player("Evan", 8), Player("Yahto", 9)]
-goalkeepers = [Player("Lucie", 1), Player("Walter", 4), Player("Vidar", 5)]
+goalkeepers = [player for player in players if player.name in ["Lucie", "Walter", "Vidar"]]
 
 # Number of substitutions available
 if len(players) == 6:
@@ -41,72 +30,47 @@ def select_goalkeeper(candidates):
     goalkeeper = random.choice(candidates)
     return goalkeeper
 
-
-def create_segments(players, goalkeepers, target_minutes):
+def create_segments(players, goalkeepers):
+    # segments, playing_time = create_segments(players, goalkeepers, target_minutes)
     """Create lineups for each segment while satisfying constraints."""
     segments = []
 
-    all_players = players + goalkeepers
-    all_players_set = set(all_players)
-
-    # Initialize playing time for all players
-    playing_time = {p.name: 0 for p in all_players}
-
-
     for i in range(4):
         # Assign the remaining players to other positions
+        all_players = players.copy()
         goalkeeper = select_goalkeeper(goalkeepers)
+        all_players.remove(goalkeeper)
         print(goalkeeper)
 
-        # Ensure the goalkeeper is not selected as a substitute
-        available_subs = list(all_players_set) #(all_players_set - {goalkeeper})
-        available_subs.remove(goalkeeper)
-        print(goalkeeper, goalkeeper.name, goalkeeper.id)
-        available_sub_names = [p.name for p in available_subs]
-        available_sub_ids = [p.id for p in available_subs]
-        print(available_subs, available_sub_names, available_sub_ids)
+        field_players = select_field_players(all_players, num_field_players=5)
+        for player in field_players:
+            all_players.remove(player)
 
-        # Call the select_substitutes function to select the substitutes
-        segment_subs = select_substitutes(available_subs)
-
-        # Compute playing time so far
-        # playing_time.update(compute_playing_time(segments))
-
-        # Get players under target time
-        options = [p for p in available_subs if playing_time[p.name] < target_minutes]
-
-        # Select 5 field players with lowest time
-        field_players = sorted(options, key=lambda p: playing_time[p.name])[:5]
-
-        # field_players = list(all_players - set(segment_subs) - set([goalkeeper]))
-        random.shuffle(field_players)
+        substitutes = select_substitutes(all_players, num_subs)
 
         segment = {
             "Goalkeeper": goalkeeper,
             "Defenders": {"Left": field_players[0], "Right": field_players[1]},
             "Midfielder": field_players[2],
             "Attackers": {"Left": field_players[3], "Right": field_players[4]},
-            "Substitutes": segment_subs,
+            "Substitutes": substitutes,
         }
         segments.append(segment)
 
-    return segments, playing_time
+    return segments
 
 # Track substitute usage
 sub_counts = {player.name: 0 for player in players}
 
-def select_substitutes(available_players):
+def select_substitutes(available_players, num_subs):
+    if len(available_players) < num_subs:
+        return available_players  # Return all available players if not enough
+    return random.sample(available_players, num_subs)
 
-    # Filter by eligibility
-    eligible = [player for player in available_players if sub_counts[player.name] < num_subs]
-
-    subs = random.sample(eligible, num_subs)
-
-    # Update counts
-    for sub in subs:
-        sub_counts[sub.name] += 1
-
-    return subs
+def select_field_players(players, num_field_players):
+    if len(players) < num_field_players:
+        return players  # Return all available players if not enough
+    return random.sample(players, num_field_players)
 
 
 # def compute_playing_time(segments):
@@ -159,7 +123,8 @@ def select_substitutes(available_players):
 target_minutes = calculate_target_minutes(40, len(players))
 print(target_minutes)
 
-segments, playing_time = create_segments(players, goalkeepers, target_minutes)
+# segments, playing_time = create_segments(players, goalkeepers, target_minutes)
+segments = create_segments(players, goalkeepers)
 for i, segment in enumerate(segments, 1):
     print(f"Segment {i}:")
     print(f"  Goalkeeper: {segment['Goalkeeper'].name}")
