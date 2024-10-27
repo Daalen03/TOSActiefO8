@@ -22,13 +22,13 @@ def calculate_target_minutes(match_length, squad_size):
 def select_goalkeeper(goalkeepers, playing_time):
     return min(goalkeepers, key=lambda x: playing_time[x.name])
 
+
 def create_segments(players, goalkeepers, target_minutes):
     segments = []
     playing_time = {player.name: 0 for player in players}
-    mid_segment_subs = {player.name: False for player in players}
-    segment_duration = 10
 
-    for i in range(4):
+    for _ in range(4):
+        random.shuffle(players)
         all_players = players.copy()
         goalkeeper = select_goalkeeper(goalkeepers, playing_time)
         all_players.remove(goalkeeper)
@@ -46,58 +46,16 @@ def create_segments(players, goalkeepers, target_minutes):
             "Attackers": {"Left": field_players[3], "Right": field_players[4]},
             "Substitutes": substitutes,
         }
-
-        # Mid-segment substitution check
-        if i > 0:  # No substitution in the first segment
-            for position, player in list(segment.items()):
-                if position not in ["Substitutes", "Goalkeeper"]:
-                    if isinstance(player, dict):
-                        for sub_position, sub_player in player.items():
-                            if playing_time[sub_player.name] >= target_minutes and not mid_segment_subs[sub_player.name]:
-                                substitute = min(substitutes, key=lambda x: playing_time[x.name])
-                                if playing_time[substitute.name] < target_minutes:
-                                    # Perform substitution and print details
-                                    print(f"Mid-segment substitution in Segment {i+1}:")
-                                    print(f"  Substituting {sub_player.name} (playing time: {playing_time[sub_player.name]} min)")
-                                    print(f"  With {substitute.name} (playing time: {playing_time[substitute.name]} min)")
-
-                                    # Substitute players
-                                    segment[position][sub_position] = substitute
-                                    substitutes.remove(substitute)
-                                    substitutes.append(sub_player)
-                                    mid_segment_subs[sub_player.name] = True
-                                    # Update playing time
-                                    playing_time[sub_player.name] += segment_duration // 2
-                                    playing_time[substitute.name] += segment_duration // 2
-                    elif playing_time[player.name] >= target_minutes and not mid_segment_subs[player.name]:
-                        substitute = min(substitutes, key=lambda x: playing_time[x.name])
-                        if playing_time[substitute.name] < target_minutes:
-                            # Perform substitution and print details
-                            print(f"Mid-segment substitution in Segment {i+1}:")
-                            print(f"  Substituting {player.name} (playing time: {playing_time[player.name]} min)")
-                            print(f"  With {substitute.name} (playing time: {playing_time[substitute.name]} min)")
-
-                            # Substitute players
-                            segment[position] = substitute
-                            substitutes.remove(substitute)
-                            substitutes.append(player)
-                            mid_segment_subs[player.name] = True
-                            # Update playing time
-                            playing_time[player.name] += segment_duration // 2
-                            playing_time[substitute.name] += segment_duration // 2
-
         segments.append(segment)
 
-        # Update playing time for all players in the segment
+        # Update playing time
         for position, player in segment.items():
             if position != "Substitutes":
                 if isinstance(player, dict):
                     for sub_player in player.values():
-                        if not mid_segment_subs[sub_player.name]:
-                            playing_time[sub_player.name] += segment_duration
+                        playing_time[sub_player.name] += 10
                 else:
-                    if not mid_segment_subs[player.name]:
-                        playing_time[player.name] += segment_duration
+                    playing_time[player.name] += 10
 
     return segments, playing_time
 
@@ -127,6 +85,68 @@ def select_field_players(players, num_field_players, playing_time):
     players = sorted(players, key=lambda x: playing_time[x.name])
     return players[:num_field_players]
 
+
+def suggest_mid_segment_substitutions(segments, playing_time, target_minutes):
+    suggestions = []
+    for i, segment in enumerate(segments):
+        segment_suggestions = []
+        used_substitutes = set()
+        for position, player in segment.items():
+            if position not in ["Substitutes", "Goalkeeper"]:
+                if isinstance(player, dict):
+                    for sub_position, sub_player in player.items():
+                        substitute = check_for_substitution(sub_player, segment["Substitutes"], playing_time,
+                                                            target_minutes, used_substitutes)
+                        if substitute:
+                            segment_suggestions.append((i + 1, position, sub_position, sub_player, substitute))
+                            used_substitutes.add(substitute.name)
+                else:
+                    substitute = check_for_substitution(player, segment["Substitutes"], playing_time, target_minutes,
+                                                        used_substitutes)
+                    if substitute:
+                        segment_suggestions.append((i + 1, position, None, player, substitute))
+                        used_substitutes.add(substitute.name)
+
+        suggestions.extend(segment_suggestions[:len(segment["Substitutes"])])
+
+    return suggestions
+
+
+def process_player(player, substitutes, projected_time, target_minutes, substituted_players, segment_suggestions,
+                   segment_index, position, sub_position=None):
+    if player.name not in substituted_players:
+        substitute = check_for_substitution(player, substitutes, projected_time, target_minutes)
+
+
+
+def update_segment_projected_time(segment, projected_time, segment_duration, segment_suggestions):
+    for position, player in segment.items():
+        if position != "Substitutes":
+            if isinstance(player, dict):
+                for sub_player in player.values():
+                    projected_time[sub_player.name] += segment_duration
+            else:
+                projected_time[player.name] += segment_duration
+
+    # Adjust for suggested substitutions
+    for _, _, _, player_out, player_in in segment_suggestions:
+        projected_time[player_out.name] -= segment_duration / 2
+        projected_time[player_in.name] += segment_duration / 2
+
+
+
+def update_projected_time(projected_time, player_out, player_in, substitution_time):
+    projected_time[player_out.name] -= substitution_time
+    projected_time[player_in.name] += substitution_time
+
+def check_for_substitution(player, substitutes, playing_time, target_minutes, used_substitutes):
+    if playing_time[player.name] >= target_minutes:
+        eligible_subs = [sub for sub in substitutes if playing_time[sub.name] < target_minutes and sub.name not in used_substitutes]
+        if eligible_subs:
+            return min(eligible_subs, key=lambda x: playing_time[x.name])
+    return None
+
+
 # Run the function to create segments
 # target_minutes = 20
 target_minutes = calculate_target_minutes(40, len(players))
@@ -145,5 +165,15 @@ for i, segment in enumerate(segments, 1):
 # Print final playing time for each player
 for player, time in playing_time.items():
     print(f"{player}: {time} minutes")
+
+# At the end of your script, after creating segments and calculating playing time:
+substitution_suggestions = suggest_mid_segment_substitutions(segments, playing_time, target_minutes)
+
+for suggestion in substitution_suggestions:
+    segment, position, sub_position, player_out, player_in = suggestion
+    if sub_position:
+        print(f"Segment {segment}: Suggest substituting {player_out.name} with {player_in.name} at {position} {sub_position}")
+    else:
+        print(f"Segment {segment}: Suggest substituting {player_out.name} with {player_in.name} at {position}")
 
 print("Script has run successfully.")
