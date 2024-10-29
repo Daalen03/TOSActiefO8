@@ -6,7 +6,7 @@ class Player:
         self.id = id
 
 # Initialize player and goalkeeper lists
-players = [Player("Lucie", 1), Player("Eliah", 2), Player("Victor", 3), Player("Walter", 4),
+players = [Player("Eliah", 2), Player("Victor", 3), Player("Walter", 4),
            Player("Vidar", 5), Player("Luis", 6), Player("Oscar", 7), Player("Evan", 8), Player("Yahto", 9)]
 goalkeepers = [player for player in players if player.name in ["Walter", "Vidar"]]
 
@@ -14,7 +14,7 @@ random.shuffle(players)
 random.shuffle(goalkeepers)
 
 # Number of substitutions available
-num_subs = 3 if len(players) == 9 else 0  # Adjust other cases if needed
+num_subs = len(players) - 6
 
 def calculate_target_minutes(match_length, squad_size):
     return match_length * 6 / squad_size
